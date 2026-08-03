@@ -1,0 +1,98 @@
+# SECOM 반도체 공정 불량 판별 프로젝트
+
+반도체 웨이퍼 제조 공정에서 수집된 센서 데이터를 기반으로, 불량(fail) 웨이퍼를 사전에 판별하는 분류 모델을 구축하고, 결과를 정적/실시간 두 종류의 대시보드로 시각화하며, 실시간 불량 예측 발생 시 Slack으로 알림을 보내는 프로젝트입니다.
+
+## 문제 정의
+
+반도체 공정은 590개에 달하는 센서로 지속 모니터링되지만, 불량은 전체의 6.64%에 불과할 만큼 드물게 발생합니다. 이런 극심한 클래스 불균형 속에서 불량을 놓치지 않으면서도(재현율) 오탐을 최소화하는(정밀도) 모델을 만드는 것이 핵심 과제였습니다.
+
+## 데이터
+
+- **출처**: [UCI Machine Learning Repository — SECOM Dataset](https://archive.ics.uci.edu/ml/datasets/secom)
+- **규모**: 1,567개 샘플, 590개 센서 피처
+- **라벨**: Pass(정상) 1,463건 / Fail(불량) 104건 — 약 14:1 불균형
+- `data/uci-secom.csv`로 저장 (git에는 커밋하지 않음, 직접 다운로드해서 배치)
+
+## 접근 과정
+
+1. **전처리**: 결측치 40% 초과 컬럼 제거 → 중위값 대체 → 분산 0인 컬럼 제거 (590개 → 432개)
+2. **피처 선택**: Random Forest 중요도 기준 상위 40개 피처 선택
+3. **모델 비교**: Logistic Regression, Random Forest, Gradient Boosting, XGBoost, SVM(RBF) 5개 모델을 `RandomizedSearchCV`(5-fold CV, ROC-AUC 기준)로 튜닝
+4. **임계값 최적화**: 기본 임계값(0.5)에서는 대부분 모델의 재현율이 0에 가까웠음 → 정밀도-재현율 곡선에서 F1을 최대화하는 임계값으로 재산정
+5. **시각화**: 분석 결과를 정적 대시보드로, 실제 운영 상황을 가정한 실시간 모니터링 시뮬레이션을 별도 대시보드로 구현
+6. **알림**: 실시간 모니터링 중 불량이 예측되면 쿨다운을 적용해 Slack으로 알림 전송
+
+## 핵심 인사이트
+
+극심한 클래스 불균형 데이터에서는 정확도(accuracy)가 무의미했습니다. 기본 임계값 기준 재현율은 0%에 가까웠지만, 임계값을 최적화하자 재현율이 최대 69%까지 개선되었습니다.
+
+## 결과 요약
+
+| 모델 | AUC | 정밀도 | 재현율 | F1 | 최적 임계값 |
+|---|---|---|---|---|---|
+| Logistic Regression | 0.765 | 0.216 | 0.423 | 0.286 | 0.639 |
+| **Random Forest (최종 선정)** | 0.775 | 0.282 | 0.423 | **0.338** | 0.299 |
+| Gradient Boosting | 0.732 | 0.321 | 0.346 | 0.333 | 0.074 |
+| XGBoost | 0.782 | 0.238 | 0.385 | 0.294 | 0.069 |
+| SVM (RBF) | 0.811 | 0.217 | 0.692 | 0.330 | 0.091 |
+
+> 최종 모델은 AUC 최댓값이 아닌 **F1 기준**으로 선정했습니다.
+
+## 프로젝트 구조
+
+```
+secom-defect-dashboard/
+├── scripts/
+│   ├── train_pipeline.py    # 모델 학습 → data/dashboard_data.json 생성
+│   ├── simulate_stream.py   # stream_queue 순차 재생 + Slack 쿨다운 알림
+│   └── notify_slack.py      # Slack Incoming Webhook 전송 모듈
+├── dashboard/
+│   ├── secom_defect_dashboard.html   # 정적 분석 대시보드
+│   └── secom_live_monitoring.html    # 실시간 모니터링 시뮬레이션(브라우저 전용 시각화)
+├── data/                      # uci-secom.csv, dashboard_data.json (git 미포함)
+├── requirements.txt
+└── .env.example
+```
+
+## 대시보드
+
+- 정적 분석 대시보드 (`dashboard/secom_defect_dashboard.html`) — 전처리 과정, 모델 비교, 피처 중요도, 공정 관리도
+- 실시간 모니터링 시뮬레이션 (`dashboard/secom_live_monitoring.html`) — 고정된 모델로 신규 데이터를 스코어링하며 통계를 누적 갱신. 테스트셋을 실제 유입처럼 순차 재생. **이 HTML은 브라우저에서만 배너로 알림을 표시하며, Slack 전송은 하지 않습니다** (웹훅 URL이 클라이언트 코드에 노출되는 것을 막기 위해 Slack 알림은 아래 `simulate_stream.py`에서 서버 사이드로 처리합니다).
+
+## Slack 알림 설정
+
+1. https://api.slack.com/apps → **Create New App** → **From scratch**
+2. 좌측 메뉴 **Incoming Webhooks** → 토글 On
+3. **Add New Webhook to Workspace** → 알림 받을 채널 선택 → Authorize
+4. 발급된 `https://hooks.slack.com/services/...` URL을 `.env`에 저장:
+   ```
+   cp .env.example .env
+   # .env 파일을 열어 SLACK_WEBHOOK_URL 값을 실제 웹훅 URL로 교체
+   ```
+5. 웹훅을 설정하지 않으면 `notify_slack.py`는 알림을 콘솔에만 출력하고 에러 없이 넘어갑니다.
+
+불량 예측이 짧은 시간 안에 연속으로 발생해도 Slack이 스팸이 되지 않도록, `simulate_stream.py`는 기본 60초 쿨다운을 적용합니다(쿨다운 중 억제된 건수는 다음 알림 메시지에 함께 표시됩니다).
+
+## 실행 방법
+
+```bash
+# 최초 설정
+uv venv .venv
+.venv\Scripts\activate
+uv pip install -r requirements.txt
+cp .env.example .env   # SLACK_WEBHOOK_URL 값 입력
+
+# 1. 모델 학습 → data/dashboard_data.json 생성
+py scripts/train_pipeline.py
+
+# 2. 실시간 모니터링 시뮬레이션 (Slack 쿨다운 알림 포함)
+py scripts/simulate_stream.py --interval 0.3 --cooldown 60
+```
+
+`dashboard/*.html`은 `data/dashboard_data.json`을 직접 열람용으로 참고하는 정적 시각화이며, Slack 알림 로직과는 독립적으로 동작합니다.
+
+## 한계와 다음 단계
+
+- 실제 설비 데이터 연동 대신 보유한 테스트셋으로 유입을 시뮬레이션했습니다. 유입부만 실시간 소스(MES/센서 스트림)로 교체하면 동일 구조를 실제 운영에 적용할 수 있습니다.
+- 현재는 모델을 1회 학습 후 고정하는 구조이며, 실제 운영에서는 주기적 재학습 배치가 별도로 필요합니다.
+- 590개 피처 중 상위 40개만 사용했는데, 도메인 지식이 결합되면 피처 선택 품질을 더 높일 수 있습니다.
