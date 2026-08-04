@@ -44,11 +44,12 @@
 secom-defect-dashboard/
 ├── scripts/
 │   ├── train_pipeline.py    # 모델 학습 → data/dashboard_data.json 생성
-│   ├── simulate_stream.py   # stream_queue 순차 재생 + Slack 쿨다운 알림
+│   ├── server.py            # 대시보드 서빙 + /api/alert 수신 → 쿨다운 적용 Slack 전송
+│   ├── simulate_stream.py   # (CLI용) stream_queue 순차 재생 + Slack 쿨다운 알림
 │   └── notify_slack.py      # Slack Incoming Webhook 전송 모듈
 ├── dashboard/
 │   ├── secom_defect_dashboard.html   # 정적 분석 대시보드
-│   └── secom_live_monitoring.html    # 실시간 모니터링 시뮬레이션(브라우저 전용 시각화)
+│   └── secom_live_monitoring.html    # 실시간 모니터링 대시보드(재생 중 불량 예측 시 서버로 이벤트 전송)
 ├── data/                      # uci-secom.csv, dashboard_data.json (git 미포함)
 ├── requirements.txt
 └── .env.example
@@ -57,7 +58,7 @@ secom-defect-dashboard/
 ## 대시보드
 
 - 정적 분석 대시보드 (`dashboard/secom_defect_dashboard.html`) — 전처리 과정, 모델 비교, 피처 중요도, 공정 관리도
-- 실시간 모니터링 시뮬레이션 (`dashboard/secom_live_monitoring.html`) — 고정된 모델로 신규 데이터를 스코어링하며 통계를 누적 갱신. 테스트셋을 실제 유입처럼 순차 재생. **이 HTML은 브라우저에서만 배너로 알림을 표시하며, Slack 전송은 하지 않습니다** (웹훅 URL이 클라이언트 코드에 노출되는 것을 막기 위해 Slack 알림은 아래 `simulate_stream.py`에서 서버 사이드로 처리합니다).
+- 실시간 모니터링 대시보드 (`dashboard/secom_live_monitoring.html`) — 고정된 모델로 신규 데이터를 스코어링하며 통계를 누적 갱신. 테스트셋을 실제 유입처럼 순차 재생하고, 불량이 예측될 때마다 `/api/alert`로 이벤트를 서버에 전달합니다. **Slack 웹훅 URL은 브라우저에 절대 내려가지 않고 `scripts/server.py` 프로세스(.env)에만 존재하며**, 서버가 쿨다운을 적용해 실제 전송 여부를 결정합니다.
 
 ## Slack 알림 설정
 
@@ -69,27 +70,38 @@ secom-defect-dashboard/
    cp .env.example .env
    # .env 파일을 열어 SLACK_WEBHOOK_URL 값을 실제 웹훅 URL로 교체
    ```
-5. 웹훅을 설정하지 않으면 `notify_slack.py`는 알림을 콘솔에만 출력하고 에러 없이 넘어갑니다.
+5. 웹훅을 설정하지 않으면 알림은 콘솔에만 출력되고 에러 없이 넘어갑니다.
 
-불량 예측이 짧은 시간 안에 연속으로 발생해도 Slack이 스팸이 되지 않도록, `simulate_stream.py`는 기본 60초 쿨다운을 적용합니다(쿨다운 중 억제된 건수는 다음 알림 메시지에 함께 표시됩니다).
+불량 예측이 짧은 시간 안에 연속으로 발생해도 Slack이 스팸이 되지 않도록, 기본 60초 쿨다운을 적용합니다(쿨다운 중 억제된 건수는 다음 알림 메시지에 함께 표시). `.env`의 `SLACK_ALERT_COOLDOWN_SECONDS`로 조정할 수 있습니다.
 
 ## 실행 방법
 
+### 대시보드 + Slack 알림 (권장)
+
 ```bash
-# 최초 설정
 uv venv .venv
 .venv\Scripts\activate
 uv pip install -r requirements.txt
 cp .env.example .env   # SLACK_WEBHOOK_URL 값 입력
 
-# 1. 모델 학습 → data/dashboard_data.json 생성
-py scripts/train_pipeline.py
+py scripts/server.py
+# 브라우저에서 http://localhost:5000 접속 → "재생" 클릭
+# 불량으로 예측된 웨이퍼가 나올 때마다 서버가 쿨다운을 적용해 Slack으로 전송
+```
 
-# 2. 실시간 모니터링 시뮬레이션 (Slack 쿨다운 알림 포함)
+### CLI로만 재생 (터미널에서 로그만 확인하고 싶을 때)
+
+```bash
 py scripts/simulate_stream.py --interval 0.3 --cooldown 60
 ```
 
-`dashboard/*.html`은 `data/dashboard_data.json`을 직접 열람용으로 참고하는 정적 시각화이며, Slack 알림 로직과는 독립적으로 동작합니다.
+### 모델 재학습
+
+```bash
+py scripts/train_pipeline.py   # data/dashboard_data.json 갱신
+```
+
+`dashboard/secom_live_monitoring.html`에는 이전에 학습된 결과가 `const DATA = ...`로 이미 삽입되어 있어 바로 재생해볼 수 있습니다. 재학습 후 대시보드에 반영하려면 새로 생성된 `data/dashboard_data.json` 내용을 이 HTML의 `const DATA = ...` 부분에 다시 붙여넣어야 합니다(수동 삽입 방식은 원본 프로젝트 구조를 그대로 유지했습니다).
 
 ## 한계와 다음 단계
 

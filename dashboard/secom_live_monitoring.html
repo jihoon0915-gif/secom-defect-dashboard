@@ -266,7 +266,15 @@ function step(){
   histChart.update('none');
 
   pushLog(rec, true);
-  if(rec.pred_label) showAlert(rec);
+  if(rec.pred_label){
+    showAlert(rec);
+    // 웹훅 URL을 클라이언트에 두지 않기 위해, 실제 Slack 전송은 서버(/api/alert)가 쿨다운을 적용해 처리한다.
+    fetch('/api/alert', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(rec)
+    }).catch(()=>{});
+  }
 
   renderLiveKpi();
   document.getElementById('progressFill').style.width = (state.seen/QUEUE.length*100)+'%';

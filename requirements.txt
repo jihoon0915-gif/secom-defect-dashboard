@@ -4,3 +4,4 @@ xgboost
 numpy
 requests
 python-dotenv
+flask
