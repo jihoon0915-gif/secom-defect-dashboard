@@ -5,4 +5,3 @@ numpy
 requests
 python-dotenv
 flask
-gunicorn

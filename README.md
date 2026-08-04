@@ -52,7 +52,6 @@ secom-defect-dashboard/
 │   └── secom_live_monitoring.html    # 실시간 모니터링 대시보드(재생 중 불량 예측 시 서버로 이벤트 전송)
 ├── data/                      # uci-secom.csv, dashboard_data.json (git 미포함)
 ├── requirements.txt
-├── render.yaml                # Render 배포 설정 (Blueprint)
 └── .env.example
 ```
 
@@ -89,17 +88,6 @@ py scripts/server.py
 # 브라우저에서 http://localhost:5000 접속 → "재생" 클릭
 # 불량으로 예측된 웨이퍼가 나올 때마다 서버가 쿨다운을 적용해 Slack으로 전송
 ```
-
-### 공개 배포 (Render) — 다른 기기/외부에서 접속
-
-포트폴리오 링크처럼 외부에서도 접속 가능한 고정 URL이 필요할 때 사용합니다. `render.yaml`에 배포 설정이 이미 정의되어 있습니다.
-
-1. 이 프로젝트를 GitHub에 push
-2. [Render 대시보드](https://dashboard.render.com) → **New +** → **Blueprint** → 방금 push한 저장소 선택 (render.yaml을 자동 인식)
-3. 환경변수 입력 화면에서 `SLACK_WEBHOOK_URL`에 실제 웹훅 URL 입력 (`sync: false`라 저장소에는 노출되지 않음)
-4. 배포 완료 후 발급되는 `https://secom-defect-dashboard-xxxx.onrender.com` 형태의 URL로 접속
-
-**주의**: `/api/alert`는 인증이 없는 공개 엔드포인트입니다. 쿨다운(기본 60초)과 IP당 2초 최소 간격 제한을 걸어뒀지만, 완전한 스팸 방지는 아닙니다. 실제 운영 채널이 아닌 데모 전용 채널의 웹훅을 쓰는 것을 권장합니다. 무료 플랜은 일정 시간 요청이 없으면 슬립 상태가 되어 첫 접속 시 로딩이 몇 초 걸릴 수 있습니다.
 
 ### CLI로만 재생 (터미널에서 로그만 확인하고 싶을 때)
 
