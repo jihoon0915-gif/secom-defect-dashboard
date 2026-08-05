@@ -17,7 +17,7 @@
 
 1. **전처리**: 결측치 40% 초과 컬럼 제거 → 중위값 대체 → 분산 0인 컬럼 제거 (590개 → 432개)
 2. **피처 선택**: Random Forest 중요도 기준 상위 40개 피처 선택
-3. **모델 비교**: Logistic Regression, Random Forest, Gradient Boosting, XGBoost, SVM(RBF) 5개 모델을 `RandomizedSearchCV`(5-fold CV, ROC-AUC 기준)로 튜닝
+3. **모델 비교**: Logistic Regression, Random Forest, Gradient Boosting, XGBoost, SVM(RBF) 5개 모델을 `RandomizedSearchCV`(3-fold CV, ROC-AUC 기준)로 튜닝
 4. **임계값 최적화**: 기본 임계값(0.5)에서는 대부분 모델의 재현율이 0에 가까웠음 → 정밀도-재현율 곡선에서 F1을 최대화하는 임계값으로 재산정
 5. **시각화**: 분석 결과를 정적 대시보드로, 실제 운영 상황을 가정한 실시간 모니터링 시뮬레이션을 별도 대시보드로 구현
 6. **알림**: 실시간 모니터링 중 불량이 예측되면 쿨다운을 적용해 Slack으로 알림 전송
