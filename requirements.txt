@@ -1,7 +1,7 @@
-pandas
-scikit-learn
-xgboost
-numpy
-requests
-python-dotenv
-flask
+pandas==3.0.5
+scikit-learn==1.9.0
+xgboost==3.4.1
+numpy==2.5.2
+requests==2.34.2
+python-dotenv==1.2.3
+flask==3.1.3

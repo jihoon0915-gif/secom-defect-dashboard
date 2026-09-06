@@ -4,3 +4,4 @@ __pycache__/
 .env
 data/uci-secom.csv
 data/dashboard_data.json
+demo_videos/

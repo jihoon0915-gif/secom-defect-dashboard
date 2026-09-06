@@ -1,5 +1,10 @@
 # SECOM 공정 수율 제어 — 극단적 클래스 불균형 하 센서 기반 불량 판별 및 실시간 알림 시스템
 
+> **TL;DR**
+> - **문제**: 반도체 웨이퍼 590개 센서 데이터, 불량률 6.64%의 극단적 클래스 불균형에서 불량을 놓치지 않는 판별 모델 만들기
+> - **핵심 인사이트**: 기본 임계값(0.5)에서는 대부분 모델의 재현율이 0%에 가까웠음 → PR 곡선 기반 임계값 재산정으로 최대 69%까지 개선
+> - **결과**: Random Forest(F1 0.338)를 최종 선정, 정적/실시간 대시보드와 Slack 알림까지 구현 → [Live Demo 바로 보기](#-live-demo-별도-설치-없이-바로-열람)
+
 반도체 웨이퍼 공정은 590개 채널의 계측(Metrology) 센서로 촘촘히 모니터링되지만, 실제 불량은 전체의 6.64%(104/1,567건)에 불과할 만큼 드물게 나타납니다. 이 프로젝트는 이 590개 센서 신호 중 불량 예측과 통계적으로 가장 강하게 연관된 변수를 추려내고, "불량을 정상으로 오판하는 비용"(재현율 손실)을 최소화하는 방향으로 판정 기준(임계값)을 재설계한 뒤, 그 결과를 정적/실시간 대시보드로 시각화하고 불량 예측 발생 시 Slack으로 알림을 보내는 것까지 구현한 수율 제어(Yield Control) 파이프라인입니다. 반도체 공정기술/수율분석 직무에서 다루는 클래스 불균형 처리, 임계값(Threshold) 재설계, SPC 관리도 기반 이상 탐지를 데이터 엔지니어링 관점으로 재현한 프로젝트입니다.
 
 ## 🔗 Live Demo (별도 설치 없이 바로 열람)
@@ -168,6 +173,17 @@ py scripts/train_pipeline.py   # data/dashboard_data.json 갱신
 ```
 
 `dashboard/secom_live_monitoring.html`에는 이전에 학습된 결과가 `const DATA = ...`로 이미 삽입되어 있어 바로 재생해볼 수 있습니다. 재학습 후 대시보드에 반영하려면 새로 생성된 `data/dashboard_data.json` 내용을 이 HTML의 `const DATA = ...` 부분에 다시 붙여넣어야 합니다(수동 삽입 방식은 원본 프로젝트 구조를 그대로 유지했습니다).
+
+### 데모 영상 자동 녹화
+
+`scripts/record_demo.py`는 Playwright로 GitHub Pages 대시보드를 열어 마우스 흔들림 없이 일정한 시연 동작(정적 대시보드 섹션 순회, 실시간 모니터링 재생)을 수행하고, 별도 화면 녹화 프로그램 없이 `demo_videos/*.webm`로 바로 저장합니다.
+
+```bash
+uv pip install playwright
+py -m playwright install chromium
+py scripts/record_demo.py
+# demo_videos/static_dashboard_tour.webm, demo_videos/live_monitoring_demo.webm 생성
+```
 
 ## 한계와 다음 단계
 
